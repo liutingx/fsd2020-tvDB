@@ -1,0 +1,18 @@
+<div class="row d-flex justify-content-between">
+    <h1 class="text-uppercase">{{tvDetails.name}}</h1>
+    <h1>{{tvDetails.rating}}</h1>
+</div>
+<table class="table">
+    <tr>
+        <td><img src="{{tvDetails.image}}" alt=""></td>
+        <td>{{{tvDetails.summary}}}</td>
+    </tr>
+</table>
+<div class="row d-flex justify-content-between">
+    <a href="/">Back</a>
+    {{#if noSite}}
+        <a href="{{tvDetails.official_site}}" target="_blank">Click here for official site</a>
+    {{/if}}
+</div>
+
+
