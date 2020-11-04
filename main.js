@@ -7,42 +7,61 @@ const mysql = require('mysql2/promise')
 const SQL_GET_TV_NAMES = 'select tvid, name from tv_shows order by name desc limit ?'
 const SQL_GET_INFO_BY_TVID = 'select name, rating, image, summary, official_site from tv_shows where tvid = ?'
 
+const limit = 10
+
 //create express instance
 const app = express()
 
 //set up PORT
 const PORT = parseInt(process.argv[2]) || parseInt(process.env.PORT) || 3000
 
+const mkQuery = (sqlStmt, pool) => {
+    const f = async (params) => {
+        const conn = await pool.getConnection()
+        try {
+            const results = await conn.query(sqlStmt, params)
+            
+            return results[0]
+            }
+        catch(e) {
+            return Promise.reject(e)
+        }
+        finally {
+            conn.release()
+        }
+    }
+    return f
+}
+
 //configure connection pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'db4free.net',
+    host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT) || 3306, 
-    database: process.env.DB_NAME || 'leisure_shows',
+    database: process.env.DB_NAME || 'leisure',
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     connectionLimit: 4, 
     timezone: '+08:00'
 })
 
+
 // configure handlebars
 app.engine('hbs', handlebars({ defaultLayout: 'default.hbs' }))
 app.set('view engine', 'hbs')
 
+//create queries
+const getTVList = mkQuery(SQL_GET_TV_NAMES, pool)
+const getTVShowById = mkQuery(SQL_GET_INFO_BY_TVID, pool)
+
 //application
 app.get('/', async(req, resp) => {
-    
-    const limit = 10
-    const conn = await pool.getConnection()
-
     try {
-        const results = await conn.query(SQL_GET_TV_NAMES, [limit])
-        
-        console.info(results[0])
+        const results = await getTVList([limit])
         
         resp.status(200)
         resp.type('text/html')
         resp.render('index', {
-            tvNames: results[0]
+            tvNames: results
         })
     }
     catch(e) {
@@ -50,18 +69,13 @@ app.get('/', async(req, resp) => {
         resp.type('text/html')
         resp.send(JSON.stringify(e))
     }
-    finally {
-        conn.release()
-    }
 })
 
 app.get('/results/:tvid', async(req, resp) => {
-    const conn = await pool.getConnection()
     const tvid = req.params.tvid
 
     try {
-        const results = await conn.query(SQL_GET_INFO_BY_TVID, [tvid])
-        const recs = results[0]
+        const recs = await getTVShowById([tvid])
         
         if (recs[0].official_site == ''){
             console.info('no official site')
@@ -71,7 +85,7 @@ app.get('/results/:tvid', async(req, resp) => {
             //404!
             resp.status(404)
             resp.type('text/html')
-            resp.send(`Not found: ${appId}`)
+            resp.send(`Not found: ${tvid}`)
             return
         }
         
@@ -86,9 +100,6 @@ app.get('/results/:tvid', async(req, resp) => {
         resp.status(500)
         resp.type('text/html')
         resp.send(JSON.stringify(e))
-    }
-    finally {
-        conn.release()
     }
 })
 
